@@ -152,6 +152,47 @@
     .center{text-align:center}
     .pill{padding:6px 8px;border-radius:8px;background:rgba(255,255,255,0.02);font-weight:700}
     .hidden{display:none}
+
+    /* make selects readable on dark background */
+    .panel-modal select,
+    .panel-modal select option,
+    select,
+    select option {
+      color: #e6eef6 !important;
+      /*background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)) !important; */
+       /* đảm bảo nền dropdown và option tối để thấy chữ sáng */
+       background-color: #071022 !important;
+      background-image: none !important;
+      border-color: rgba(255,255,255,0.04) !important;
+    }
+    /* thêm styling cho option (padding/hover) */
+    .panel-modal select option,
+    select option {
+      padding: 6px 10px;
+      color: #e6eef6 !important;
+      background-color: #071022 !important;
+    }
+    /* remove native caret on some browsers and make focus visible */
+    .panel-modal select {
+      -webkit-appearance: none;
+      appearance: none;
+      padding-right: 28px;
+      outline: none;
+      box-shadow: none;
+    }
+    .panel-modal select:focus {
+      box-shadow: 0 0 0 3px rgba(0,209,178,0.08);
+    }
+    /* hide IE/Edge dropdown arrow */
+    select::-ms-expand { display: none; }
+    /* more visible focus / dropdown caret */
+    .panel-modal select {
+      -webkit-appearance: none;
+      appearance: none;
+      padding-right: 28px;
+    }
+    /* optional: ensure dropdown text is left-aligned and readable */
+    .panel-modal select option { text-align: left; }
   </style>
 </head>
 <body>
@@ -415,7 +456,7 @@
       quickPlay('tictactoe');
     });
     document.getElementById('createRoomBtn').addEventListener('click', ()=> {
-      openCreateRoom('tictactoe');
+      openCreateRoom(); // mở modal cho phép chọn game
     });
     document.getElementById('statsBtn').addEventListener('click', ()=> {
       renderStatsView(); showView('stats');
@@ -427,15 +468,27 @@
 
     /* ---------- Create room modal ---------- */
     function openCreateRoom(gameId){
+      const defaultGameId = gameId || (GAMES[0] && GAMES[0].id) || 'tictactoe';
+      const startGame = GAMES.find(g => g.id === defaultGameId) || GAMES[0];
+
       const overlay = document.createElement('div');
       overlay.className = 'overlay';
       overlay.innerHTML = `
         <div class="panel-modal">
-          <h3>Tạo phòng — ${gameId}</h3>
+          <h3 id="createModalTitle">Tạo phòng — ${startGame.name}</h3>
+
           <div style="margin-top:8px">
             <label class="small muted">Tên bạn</label>
             <input id="createName" placeholder="User123" style="width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);margin-top:6px;background:transparent;color:inherit" />
           </div>
+
+          <div style="margin-top:8px">
+            <label class="small muted">Chọn game</label>
+            <select id="selectGame" style="width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);margin-top:6px;background:transparent;color:inherit">
+              ${GAMES.map(g=>`<option value="${g.id}" ${g.id === defaultGameId ? 'selected' : ''}>${g.name}</option>`).join('')}
+            </select>
+          </div>
+
           <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
             <button class="btn ghost" id="cancelCreate">Huỷ</button>
             <button class="btn" id="confirmCreate">Tạo phòng</button>
@@ -444,10 +497,20 @@
       `;
       overlay.onclick = (e)=>{ if(e.target === overlay) overlay.remove(); };
       document.body.appendChild(overlay);
+
+      const selectEl = document.getElementById('selectGame');
+      const titleEl = document.getElementById('createModalTitle');
+      // cập nhật tiêu đề khi đổi select
+      selectEl.onchange = ()=> {
+        const g = GAMES.find(x => x.id === selectEl.value);
+        if(g) titleEl.textContent = `Tạo phòng — ${g.name}`;
+      };
+
       document.getElementById('cancelCreate').onclick = ()=> overlay.remove();
       document.getElementById('confirmCreate').onclick = ()=>{
         const name = (document.getElementById('createName').value || 'Player').trim();
-        const r = createRoom(gameId, name);
+        const chosen = (document.getElementById('selectGame').value) || defaultGameId;
+        const r = createRoom(chosen, name);
         overlay.remove();
         openRoom(r.id);
       };
