@@ -77,6 +77,14 @@
       display:flex;flex-direction:column;gap:8px;align-items:flex-start;transition:transform .14s, box-shadow .14s;
       border:1px solid rgba(255,255,255,0.02);
     }
+    .game-card img.game-img {
+      width: 100%;
+      height: 120px;
+      object-fit: cover;
+      border-radius: 8px;
+      margin-bottom: 6px;
+    }
+
     .game-card:hover{transform:translateY(-6px);box-shadow:0 10px 30px rgba(2,8,20,0.5)}
     .game-title{font-weight:700}
     .game-meta{font-size:13px;color:var(--muted)}
@@ -201,7 +209,11 @@
 
       <!-- Stats view -->
       <section id="stats-view" class="view">
-        <h2>Thống kê</h2>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <h2>Thống kê</h2>
+          <button class="btn ghost" onclick="showView('home')">← Quay lại</button>
+        </div>
+
         <div class="stats" id="statsList">
           <!-- Filled by JS -->
         </div>
@@ -245,13 +257,25 @@
 
     /* --------- Data & helpers ---------- */
     const GAMES = [
-      { id:'tictactoe', name:'Tic Tac Toe', desc:'3×3, nhanh gọn', players:2 },
-      { id:'connect4', name:'Connect 4', desc:'4 in a row (coming soon)', players:2 },
-      { id:'reversi', name:'Reversi', desc:'Lật đĩa (coming soon)', players:2 },
-      { id:'chessmini', name:'Chess Mini', desc:'Cờ vua nhỏ (coming soon)', players:2 },
-      { id:'coganh', name:'Cờ Gánh', desc:'Truyền thống (coming soon)', players:2 },
-      { id:'uno', name:'Uno Mini', desc:'Bài đơn giản (coming soon)', players:2 }
-    ];
+  { id:'tictactoe', name:'Tic Tac Toe', desc:'3×3, nhanh gọn', players:2,
+    img: '../assets/images/placeholder.png' },
+
+  { id:'connect4', name:'Connect 4', desc:'4 in a row (coming soon)', players:2,
+    img: '../assets/images/placeholder.png' },
+
+  { id:'reversi', name:'Reversi', desc:'Lật đĩa (coming soon)', players:2,
+    img: '../assets/images/placeholder.png' },
+
+  { id:'chessmini', name:'Chess Mini', desc:'Cờ vua nhỏ (coming soon)', players:2,
+    img: '../assets/images/placeholder.png' },
+
+  { id:'coganh', name:'Cờ Gánh', desc:'Truyền thống (coming soon)', players:2,
+    img: '../assets/images/placeholder.png' },
+
+  { id:'uno', name:'Uno Mini', desc:'Bài đơn giản (coming soon)', players:2,
+    img: '../assets/images/placeholder.png' }
+];
+
 
     const root = {
       homeView: document.getElementById('home-view'),
@@ -358,26 +382,31 @@
     /* ---------- Render game cards ---------- */
     function renderGameCards(){
       root.gamesGrid.innerHTML = '';
-      GAMES.forEach(g=>{
+      GAMES.forEach(g => {
         const card = document.createElement('div');
         card.className = 'game-card';
         card.innerHTML = `
-          <div style="display:flex;justify-content:space-between;width:100%;align-items:center">
-            <div>
-              <div class="game-title">${g.name}</div>
-              <div class="game-meta">${g.desc}</div>
-            </div>
-            <div style="text-align:right">
-              <div class="pill">${g.players}P</div>
-            </div>
-          </div>
-          <div style="display:flex;gap:8px;margin-top:auto">
-            <button class="btn" onclick="quickPlay('${g.id}')">Play AI</button>
-            <button class="btn ghost" onclick="openCreateRoom('${g.id}')">Create</button>
+          <img src="${g.img}" class="game-img">
+          <div class="game-title">${g.name}</div>
+          <div class="game-meta">${g.desc}</div>
+
+          <div style="display:flex; gap:8px; margin-top:8px">
+            <button class="btn" onclick="selectGame('${g.id}')">Chơi</button>
+            <button class="btn ghost" onclick="openHelp('${g.id}')">?</button>
           </div>
         `;
         root.gamesGrid.appendChild(card);
       });
+
+    }
+    // <-- added function to fix "selectGame is not defined" error
+    function selectGame(gameId){
+      // For now only Tic Tac Toe is playable in demo
+      if(gameId === 'tictactoe'){
+        quickPlay(gameId);
+        return;
+      }
+      alert('Game này hiện đang là demo UI. Chọn Tic Tac Toe để chơi ngay.');
     }
 
     /* ---------- Navigation handlers ---------- */
@@ -727,6 +756,34 @@
       // expose clear for debugging
       window.__WB = { STATS, ROOMS };
     })();
+
+    function openHelp(gameId){
+      const game = GAMES.find(x => x.id === gameId);
+
+    const rules = {
+      tictactoe: "Đánh theo lượt, ai tạo được hàng ngang/dọc/chéo 3 ký tự trước thì thắng.",
+      connect4: "Thả quân vào cột, ai tạo được 4 quân liên tiếp thì thắng.",
+      reversi: "Kẹp quân đối thủ để lật màu, cuối trận ai nhiều quân hơn thắng.",
+      chessmini: "Luật tương tự cờ vua nhưng bàn nhỏ hơn.",
+      coganh: "Bao vây để gánh quân đối phương.",
+      uno: "Đánh theo màu/số, ai hết bài trước thắng."
+    };
+
+    root.overlayRoot.className = 'overlay';
+    root.overlayRoot.innerHTML = `
+      <div class="panel-modal">
+        <h2>${game.name} — Hướng dẫn</h2>
+        <p style="margin:10px 0 20px">${rules[gameId] || "Chưa có hướng dẫn."}</p>
+        <button class="btn" onclick="closeHelp()">Đóng</button>
+      </div>
+    `;
+  }
+
+  function closeHelp(){
+    root.overlayRoot.className = 'hidden';
+    root.overlayRoot.innerHTML = '';
+  }
+
   </script>
 </body>
 </html>
