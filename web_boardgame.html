@@ -1069,6 +1069,348 @@
       return (typeof fallback === 'number') ? fallback : 0;
     }
 
+
+
+    /* ---------- REVERSI (Othello) Implementation ---------- */
+    function startReversi(opts){
+      // opts: {mode: 'pva'|'pvp', players:[name1,name2]}
+      root.lobbyArea.innerHTML = '';
+      root.turnLabel.textContent = '';
+      const area = document.createElement('div');
+      area.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div><strong>${opts.mode === 'pvp' ? '1 vs 1' : 'Vs AI'}</strong></div>
+          <div class="small muted">Players: ${opts.players.join(' • ')}</div>
+        </div>
+        <div id="reversiBoardWrap"></div>
+        <div style="margin-top:12px;display:flex;gap:8px">
+          <button class="btn ghost" id="restartReBtn">Chơi lại</button>
+          <button class="btn ghost" id="exitReBtn">Thoát</button>
+        </div>
+      `;
+      root.lobbyArea.appendChild(area);
+      const wrap = document.getElementById('reversiBoardWrap');
+
+      const SIZE = 8;
+      const state = {
+        board: initReversiBoard(),
+        turn: 'X', // X goes first
+        playerFor: { X: opts.players[0], O: (opts.players[1] || 'AI') },
+        mode: opts.mode,
+        over: false
+      };
+
+      function initReversiBoard(){
+        const b = Array(SIZE*SIZE).fill(null);
+        // Standard initial position
+        b[3*SIZE + 3] = 'O';
+        b[3*SIZE + 4] = 'X';
+        b[4*SIZE + 3] = 'X';
+        b[4*SIZE + 4] = 'O';
+        return b;
+      }
+
+      function render(){
+        wrap.innerHTML = '';
+        const info = document.createElement('div');
+        info.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+            <div class="meta"><div class="small muted">Lượt:</div><div id="reActivePlayer" style="font-weight:800;margin-left:8px">-</div></div>
+            <div class="meta"><div class="small muted">Kết quả:</div><div id="reResultLabel" style="font-weight:800;margin-left:8px">-</div></div>
+          </div>
+        `;
+        wrap.appendChild(info);
+
+        const boardEl = document.createElement('div');
+        boardEl.style.display = 'grid';
+        boardEl.style.gridTemplateColumns = `repeat(${SIZE}, 56px)`;
+        boardEl.style.gridGap = '6px';
+        boardEl.style.justifyContent = 'center';
+        boardEl.style.marginTop = '12px';
+
+        const valid = getValidMoves(state.board, state.turn);
+
+        for(let r=0;r<SIZE;r++){
+          for(let c=0;c<SIZE;c++){
+            const idx = r*SIZE + c;
+            const cell = document.createElement('div');
+            cell.className = 'cell';
+            cell.style.width = '56px';
+            cell.style.height = '56px';
+            cell.style.borderRadius = '8px';
+            cell.style.background = 'linear-gradient(180deg, rgba(0,0,0,0.15), rgba(255,255,255,0.02))';
+            cell.style.display = 'flex';
+            cell.style.alignItems = 'center';
+            cell.style.justifyContent = 'center';
+            cell.style.position = 'relative';
+            cell.style.cursor = 'pointer';
+            cell.style.boxSizing = 'border-box';
+            cell.style.border = '1px solid rgba(255,255,255,0.02)';
+
+            const v = state.board[idx];
+            if(v){
+              const disc = document.createElement('div');
+              disc.style.width = '40px';
+              disc.style.height = '40px';
+              disc.style.borderRadius = '50%';
+              disc.style.boxShadow = 'inset 0 2px 4px rgba(0,0,0,0.4)';
+              disc.style.display = 'flex';
+              disc.style.alignItems = 'center';
+              disc.style.justifyContent = 'center';
+              disc.style.fontWeight = '800';
+              disc.style.color = v === 'X' ? '#071022' : '#fff';
+              disc.style.background = v === 'X' ? 'linear-gradient(180deg,#fef3c7,#f59e0b)' : 'linear-gradient(180deg,#111827,#374151)';
+              cell.appendChild(disc);
+            } else if(valid[idx]) {
+              // show hint dot
+              const dot = document.createElement('div');
+              dot.style.width = '10px';
+              dot.style.height = '10px';
+              dot.style.borderRadius = '50%';
+              dot.style.background = 'rgba(255,255,255,0.6)';
+              dot.style.opacity = '0.9';
+              cell.appendChild(dot);
+            }
+
+            cell.onclick = ()=> onCellClick(idx, !!valid[idx]);
+            boardEl.appendChild(cell);
+          }
+        }
+
+        const score = countScore(state.board);
+        const scoreEl = document.createElement('div');
+        scoreEl.style.marginTop = '10px';
+        scoreEl.style.display = 'flex';
+        scoreEl.style.justifyContent = 'center';
+        scoreEl.style.gap = '12px';
+        scoreEl.innerHTML = `<div class="pill">X: ${score.X}</div><div class="pill">O: ${score.O}</div>`;
+        wrap.appendChild(boardEl);
+        wrap.appendChild(scoreEl);
+
+        document.getElementById('reActivePlayer').textContent = `${state.playerFor[state.turn]} (${state.turn})`;
+      }
+
+      function onCellClick(idx, isValid){
+        if(state.over) return;
+        if(!isValid) return;
+        applyMove(state.board, idx, state.turn);
+        proceedAfterMove();
+      }
+
+      function proceedAfterMove(){
+        // check end conditions
+        const opp = state.turn === 'X' ? 'O' : 'X';
+        // switch turn
+        state.turn = opp;
+        const myValid = Object.keys(getValidMoves(state.board, state.turn)).length > 0;
+        if(!myValid){
+          // no moves for opponent -> check current player
+          const curValid = Object.keys(getValidMoves(state.board, opp)).length > 0;
+          if(!curValid){
+            // game over
+            state.over = true;
+            render();
+            finishGame();
+            return;
+          } else {
+            // skip opponent turn, keep same player
+            state.turn = opp === 'X' ? 'O' : 'X';
+          }
+        }
+
+        render();
+
+        // AI move if needed
+        if(state.mode === 'pva' && state.playerFor[state.turn] === 'AI'){
+          setTimeout(()=>{
+            const mv = getBestMoveReversi(state.board, state.turn);
+            if(typeof mv === 'number'){
+              applyMove(state.board, mv, state.turn);
+              proceedAfterMove();
+            }
+          }, 250);
+        }
+      }
+
+      function finishGame(){
+        const s = countScore(state.board);
+        let resultText = '';
+        const un = root.usernameEl.textContent;
+        // interpret winner relative to local user (assume local user is X if named player1)
+        let localIs = (state.playerFor.X === un) ? 'X' : ((state.playerFor.O === un) ? 'O' : null);
+        if(s.X > s.O){
+          resultText = `${state.playerFor.X} thắng!`;
+          if(localIs === 'X') recordResult('reversi','win'); else if(localIs === 'O') recordResult('reversi','lose');
+        } else if(s.O > s.X){
+          resultText = `${state.playerFor.O} thắng!`;
+          if(localIs === 'O') recordResult('reversi','win'); else if(localIs === 'X') recordResult('reversi','lose');
+        } else {
+          resultText = 'Hoà';
+          recordResult('reversi','draw');
+        }
+        const lbl = document.getElementById('reResultLabel');
+        if(lbl) lbl.textContent = resultText;
+      }
+
+      document.getElementById('restartReBtn').onclick = ()=>{
+        state.board = initReversiBoard();
+        state.turn = 'X';
+        state.over = false;
+        const lbl = document.getElementById('reResultLabel');
+        if(lbl) lbl.textContent = '-';
+        render();
+      };
+      document.getElementById('exitReBtn').onclick = ()=> showView('home');
+
+      // initial render
+      const lbl = document.getElementById('reResultLabel');
+      if(lbl) lbl.textContent = '-';
+      render();
+    }
+
+    // Reversi helpers
+    const DIRS8 = [-8,-7,1,9,8,7,-1,-9]; // careful with row edges when using 1D
+    function onBoard(r,c){ return r>=0 && r<8 && c>=0 && c<8; }
+
+    function indexToRC(idx){ return { r: Math.floor(idx/8), c: idx % 8 }; }
+    function rcToIndex(r,c){ return r*8 + c; }
+
+    function getValidMoves(board, player){
+      const opp = player === 'X' ? 'O' : 'X';
+      const moves = {};
+      for(let r=0;r<8;r++){
+        for(let c=0;c<8;c++){
+          const idx = rcToIndex(r,c);
+          if(board[idx]) continue;
+          const flips = [];
+          // check all 8 directions
+          const directions = [[-1,0],[-1,1],[0,1],[1,1],[1,0],[1,-1],[0,-1],[-1,-1]];
+          for(const [dr,dc] of directions){
+            let rr = r + dr, cc = c + dc;
+            const line = [];
+            while(onBoard(rr,cc) && board[rcToIndex(rr,cc)] === opp){
+              line.push(rcToIndex(rr,cc));
+              rr += dr; cc += dc;
+            }
+            if(line.length > 0 && onBoard(rr,cc) && board[rcToIndex(rr,cc)] === player){
+              flips.push(...line);
+            }
+          }
+          if(flips.length) moves[idx] = flips;
+        }
+      }
+      return moves;
+    }
+
+    function applyMove(board, idx, player){
+      const moves = getValidMoves(board, player);
+      const flips = moves[idx];
+      if(!flips) return false;
+      board[idx] = player;
+      for(const f of flips) board[f] = player;
+      return true;
+    }
+
+    function countScore(board){
+      const res = { X:0, O:0 };
+      board.forEach(v=>{ if(v==='X') res.X++; else if(v==='O') res.O++; });
+      return res;
+    }
+
+    // Simple AI: maximize flips, prefer corners
+    function getBestMoveReversi(board, player){
+      const moves = getValidMoves(board, player);
+      const keys = Object.keys(moves).map(k=>parseInt(k,10));
+      if(keys.length === 0) return null;
+      const corners = new Set([0,7,56,63]);
+      let best = keys[0], bestScore = -Infinity;
+      for(const k of keys){
+        const flips = moves[k].length;
+        let score = flips;
+        if(corners.has(k)) score += 100; // strong preference
+        // small positional bonus: edges
+        const {r,c} = indexToRC(k);
+        if(r===0||r===7) score += 2;
+        if(c===0||c===7) score += 2;
+        if(score > bestScore){ bestScore = score; best = k; }
+      }
+      return best;
+    }
+
+    /* ---------- Override small navigation hooks to include Reversi ---------- */
+    // allow selecting reversi quick-play
+    function selectGame(gameId){
+      if(gameId === 'tictactoe'){ quickPlay(gameId); return; }
+      if(gameId === 'connect4'){ quickPlay(gameId); return; }
+      if(gameId === 'reversi'){ quickPlay(gameId); return; }
+      alert('Game này hiện đang là demo UI. Chọn Tic Tac Toe, Connect 4, hoặc Reversi để chơi ngay.');
+    }
+
+    // quickPlay include reversi
+    function quickPlay(gameId){
+      if(gameId === 'tictactoe'){ showView('game'); root.currentGameLabel.textContent = 'Tic Tac Toe'; startTicTacToe({mode:'pva', players:[root.usernameEl.textContent, 'AI']}); return; }
+      if(gameId === 'connect4'){ showView('game'); root.currentGameLabel.textContent = 'Connect 4'; startConnect4({mode:'pva', players:[root.usernameEl.textContent, 'AI']}); return; }
+      if(gameId === 'reversi'){ showView('game'); root.currentGameLabel.textContent = 'Reversi'; startReversi({mode:'pva', players:[root.usernameEl.textContent, 'AI']}); return; }
+      alert('Game này đang demo cho UI. Chọn Tic Tac Toe, Connect 4, hoặc Reversi để chơi ngay.');
+    }
+
+    // ensure openRoom starts reversi when chosen
+    function openRoom(roomId){
+      const room = ROOMS[roomId];
+      if(!room){ alert('Phòng không tồn tại'); return; }
+      showView('game');
+      root.currentGameLabel.textContent = room.gameId;
+      // render lobby
+      root.lobbyArea.innerHTML = '';
+      const wrap = document.createElement('div');
+      wrap.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div><strong>Phòng #${room.id}</strong> • ${room.gameId}</div>
+          <div class="small muted">Host: ${room.host}</div>
+        </div>
+        <div class="lobby-players" id="lobbyPlayers"></div>
+        <div style="margin-top:8px">
+          <button class="btn" id="startBtn">Bắt đầu trò chơi</button>
+          <button class="btn ghost" id="leaveBtn">Rời phòng</button>
+        </div>
+      `;
+      root.lobbyArea.appendChild(wrap);
+      function refreshPlayers(){
+        const el = document.getElementById('lobbyPlayers');
+        el.innerHTML = '';
+        room.players.forEach(p=>{
+          const pEl = document.createElement('div'); pEl.className='player-pill';
+          pEl.textContent = p;
+          el.appendChild(pEl);
+        });
+      }
+      refreshPlayers();
+      document.getElementById('startBtn').onclick = ()=>{
+        const gameId = room.gameId;
+        if(room.players.length >= 2){
+          if(gameId === 'tictactoe') startTicTacToe({mode:'pvp', players:room.players.slice(0,2)});
+          else if(gameId === 'connect4') startConnect4({mode:'pvp', players:room.players.slice(0,2)});
+          else if(gameId === 'reversi') startReversi({mode:'pvp', players:room.players.slice(0,2)});
+          else alert('Game này hiện đang là demo UI.');
+        } else {
+          if(confirm('Chỉ có 1 người trong phòng. Bắt đầu với AI?')){
+            if(gameId === 'tictactoe') startTicTacToe({mode:'pva', players:[room.host,'AI']});
+            else if(gameId === 'connect4') startConnect4({mode:'pva', players:[room.host,'AI']});
+            else if(gameId === 'reversi') startReversi({mode:'pva', players:[room.host,'AI']});
+            else alert('Game này hiện đang là demo UI.');
+          }
+        }
+      };
+      document.getElementById('leaveBtn').onclick = ()=>{
+        delete ROOMS[roomId];
+        renderRooms();
+        showView('home');
+      };
+    }
+
+    // expose reversi start for debugging
+    window.startReversi = startReversi;
+
     /* ---------- Stats View render ---------- */
     function renderStatsView(){
       root.statsList.innerHTML = '';
