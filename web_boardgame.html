@@ -19,7 +19,10 @@
       --glass-2: rgba(255,255,255,0.02);
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
     }
-    *{box-sizing:border-box}
+
+    /* ---------- styles only here; JS moved to <script> ---------- */
+
+    *{box-sizing:border-box;}
     html,body{height:100%}
     body{
       margin:0;
@@ -159,20 +162,16 @@
     select,
     select option {
       color: #e6eef6 !important;
-      /*background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)) !important; */
-       /* đảm bảo nền dropdown và option tối để thấy chữ sáng */
        background-color: #071022 !important;
       background-image: none !important;
       border-color: rgba(255,255,255,0.04) !important;
     }
-    /* thêm styling cho option (padding/hover) */
     .panel-modal select option,
     select option {
       padding: 6px 10px;
       color: #e6eef6 !important;
       background-color: #071022 !important;
     }
-    /* remove native caret on some browsers and make focus visible */
     .panel-modal select {
       -webkit-appearance: none;
       appearance: none;
@@ -183,15 +182,12 @@
     .panel-modal select:focus {
       box-shadow: 0 0 0 3px rgba(0,209,178,0.08);
     }
-    /* hide IE/Edge dropdown arrow */
     select::-ms-expand { display: none; }
-    /* more visible focus / dropdown caret */
     .panel-modal select {
       -webkit-appearance: none;
       appearance: none;
       padding-right: 28px;
     }
-    /* optional: ensure dropdown text is left-aligned and readable */
     .panel-modal select option { text-align: left; }
   </style>
 </head>
@@ -301,7 +297,7 @@
   { id:'tictactoe', name:'Tic Tac Toe', desc:'3×3, nhanh gọn', players:2,
     img: './assets/images/placeholder.png' },
 
-  { id:'connect4', name:'Connect 4', desc:'4 in a row (coming soon)', players:2,
+  { id:'connect4', name:'Connect 4', desc:'4 in a row', players:2,
     img: './assets/images/placeholder.png' },
 
   { id:'reversi', name:'Reversi', desc:'Lật đĩa (coming soon)', players:2,
@@ -442,12 +438,16 @@
     }
     // <-- added function to fix "selectGame is not defined" error
     function selectGame(gameId){
-      // For now only Tic Tac Toe is playable in demo
+      // Support quick play for games that have playable implementations
       if(gameId === 'tictactoe'){
         quickPlay(gameId);
         return;
       }
-      alert('Game này hiện đang là demo UI. Chọn Tic Tac Toe để chơi ngay.');
+      if(gameId === 'connect4'){
+        quickPlay(gameId);
+        return;
+      }
+      alert('Game này hiện đang là demo UI. Chọn Tic Tac Toe hoặc Connect 4 để chơi ngay.');
     }
 
     /* ---------- Navigation handlers ---------- */
@@ -556,12 +556,19 @@
       }
       refreshPlayers();
       document.getElementById('startBtn').onclick = ()=>{
-        // For demo: only start if 2 players OR start vs AI
+        // For demo: start the appropriate game based on room.gameId
+        const gameId = room.gameId;
         if(room.players.length >= 2){
-          startTicTacToe({mode:'pvp', players:room.players.slice(0,2)});
+          if(gameId === 'tictactoe') startTicTacToe({mode:'pvp', players:room.players.slice(0,2)});
+          else if(gameId === 'connect4') startConnect4({mode:'pvp', players:room.players.slice(0,2)});
+          else alert('Game này hiện đang là demo UI.');
         } else {
           // Ask to play vs AI
-          if(confirm('Chỉ có 1 người trong phòng. Bắt đầu với AI?')) startTicTacToe({mode:'pva', players:[room.host,'AI']});
+          if(confirm('Chỉ có 1 người trong phòng. Bắt đầu với AI?')){
+            if(gameId === 'tictactoe') startTicTacToe({mode:'pva', players:[room.host,'AI']});
+            else if(gameId === 'connect4') startConnect4({mode:'pva', players:[room.host,'AI']});
+            else alert('Game này hiện đang là demo UI.');
+          }
         }
       };
       document.getElementById('leaveBtn').onclick = ()=>{
@@ -573,14 +580,20 @@
 
     /* ---------- Quick play ---------- */
     function quickPlay(gameId){
-      // For now only tictactoe playable; others show alert
-      if(gameId !== 'tictactoe'){
-        alert('Game này đang demo cho UI. Chọn Tic Tac Toe để chơi ngay.');
+      // Quick play supports tictactoe and connect4 in demo
+      if(gameId === 'tictactoe'){
+        showView('game');
+        root.currentGameLabel.textContent = 'Tic Tac Toe';
+        startTicTacToe({mode:'pva', players:[root.usernameEl.textContent, 'AI']});
         return;
       }
-      showView('game');
-      root.currentGameLabel.textContent = 'Tic Tac Toe';
-      startTicTacToe({mode:'pva', players:[root.usernameEl.textContent, 'AI']});
+      if(gameId === 'connect4'){
+        showView('game');
+        root.currentGameLabel.textContent = 'Connect 4';
+        startConnect4({mode:'pva', players:[root.usernameEl.textContent, 'AI']});
+        return;
+      }
+      alert('Game này đang demo cho UI. Chọn Tic Tac Toe hoặc Connect 4 để chơi ngay.');
     }
 
     /* ---------- TICTACTOE Implementation ---------- */
@@ -759,6 +772,303 @@
       return move;
     }
 
+    /* ---------- CONNECT 4 Implementation (moved from <style>) ---------- */
+    function startConnect4(opts){
+      // opts: {mode: 'pva'|'pvp', players:[name1,name2]}
+      root.lobbyArea.innerHTML = '';
+      root.turnLabel.textContent = '';
+      const area = document.createElement('div');
+      area.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div><strong>${opts.mode === 'pvp' ? '1 vs 1' : 'Vs AI'}</strong></div>
+          <div class="small muted">Players: ${opts.players.join(' • ')}</div>
+        </div>
+        <div id="c4BoardWrap"></div>
+        <div style="margin-top:12px;display:flex;gap:8px">
+          <button class="btn ghost" id="restartC4Btn">Chơi lại</button>
+          <button class="btn ghost" id="exitC4Btn">Thoát</button>
+        </div>
+      `;
+      root.lobbyArea.appendChild(area);
+
+      const boardWrap = document.getElementById('c4BoardWrap');
+
+      // state
+      const state = {
+        cells: Array(42).fill(null), // 'X' or 'O'
+        turn: 'X', // X starts
+        playerFor: { X: opts.players[0], O: (opts.players[1] || 'AI') },
+        mode: opts.mode,
+        over: false
+      };
+
+      function renderBoard(){
+        boardWrap.innerHTML = '';
+        const info = document.createElement('div');
+        info.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+            <div class="meta"><div class="small muted">Lượt:</div><div id="c4ActivePlayer" style="font-weight:800;margin-left:8px">-</div></div>
+            <div class="meta"><div class="small muted">Kết quả:</div><div id="c4ResultLabel" style="font-weight:800;margin-left:8px">-</div></div>
+          </div>
+        `;
+        boardWrap.appendChild(info);
+
+        // top controls aligned as a grid so arrows line up exactly with columns
+        const topGrid = document.createElement('div');
+        topGrid.style.display = 'grid';
+        topGrid.style.gridTemplateColumns = 'repeat(7, 72px)';
+        topGrid.style.gap = '8px';
+        topGrid.style.justifyContent = 'center';
+        topGrid.style.marginBottom = '8px';
+        for(let c=0;c<7;c++){
+          const btn = document.createElement('button');
+          btn.className = 'btn ghost';
+          btn.style.padding = '6px 8px';
+          btn.style.width = '72px';
+          btn.textContent = '↓';
+          btn.onclick = ()=> onColumnClick(c);
+          topGrid.appendChild(btn);
+        }
+        boardWrap.appendChild(topGrid);
+
+        const grid = document.createElement('div');
+        grid.style.display = 'grid';
+        grid.style.gridTemplateColumns = 'repeat(7, 72px)';
+        grid.style.gridAutoRows = '56px';
+        grid.style.gap = '8px';
+        grid.style.justifyContent = 'center';
+
+        // render cells (row 0 top -> row 5 bottom)
+        for(let r=0;r<6;r++){
+          for(let c=0;c<7;c++){
+            const idx = r*7 + c;
+            const el = document.createElement('div');
+            el.className = 'cell';
+            el.style.width = '72px';
+            el.style.height = '56px';
+            el.style.borderRadius = '8px';
+            el.style.background = 'linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.02))';
+            el.style.fontSize = '28px';
+            el.style.fontWeight = '800';
+            el.style.display = 'flex';
+            el.style.alignItems = 'center';
+            el.style.justifyContent = 'center';
+            const v = state.cells[idx];
+            if(v) el.innerHTML = v === 'X' ? '&#10006;' : '&#9679;';
+            grid.appendChild(el);
+          }
+        }
+        boardWrap.appendChild(grid);
+        document.getElementById('c4ActivePlayer').textContent = `${state.playerFor[state.turn]} (${state.turn})`;
+      }
+
+      function onColumnClick(col){
+        if(state.over) return;
+        // block if PvA and it's AI's turn
+        if(state.mode === 'pva' && state.turn === 'O' && state.playerFor.O === 'AI') return;
+        const dropIdx = dropPiece(state.cells, col, state.turn);
+        if(dropIdx === -1) return; // column full
+        afterMove();
+      }
+
+      function afterMove(){
+        const win = checkWinnerConnect4(state.cells);
+        if(win || isBoardFullConnect4(state.cells)){
+          state.over = true;
+          renderBoard();
+          if(win){
+            const winnerPlayer = state.playerFor[win];
+            document.getElementById('c4ResultLabel').textContent = `${winnerPlayer} thắng!`;
+            const un = root.usernameEl.textContent;
+            if(winnerPlayer === un) recordResult('connect4','win');
+            else if(winnerPlayer === 'AI') recordResult('connect4','lose');
+            else recordResult('connect4','lose');
+          } else {
+            document.getElementById('c4ResultLabel').textContent = 'Hoà';
+            recordResult('connect4','draw');
+          }
+          return;
+        }
+
+        // switch turn
+        state.turn = (state.turn === 'X') ? 'O' : 'X';
+        renderBoard();
+
+        // AI move
+        if(state.mode === 'pva' && state.turn === 'O' && state.playerFor.O === 'AI'){
+          setTimeout(()=>{
+            const aiMove = getBestMoveConnect4(state.cells, 'O');
+            dropPiece(state.cells, aiMove, 'O');
+            afterMove();
+          }, 300);
+        }
+      }
+
+      document.getElementById('restartC4Btn').onclick = ()=>{
+        state.cells = Array(42).fill(null); state.turn='X'; state.over=false;
+        const lbl = document.getElementById('c4ResultLabel');
+        if(lbl) lbl.textContent = '-';
+        renderBoard();
+      };
+      document.getElementById('exitC4Btn').onclick = ()=> showView('home');
+
+      // initial render
+      const lbl = document.getElementById('c4ResultLabel');
+      if(lbl) lbl.textContent = '-';
+      renderBoard();
+    }
+
+    function dropPiece(board, col, player){
+      // returns index where piece landed or -1 if col full
+      for(let r=5;r>=0;r--){
+        const idx = r*7 + col;
+        if(!board[idx]){ board[idx] = player; return idx; }
+      }
+      return -1;
+    }
+
+    function isBoardFullConnect4(board){ return board.every(Boolean); }
+
+    function checkWinnerConnect4(board){
+      // check all four directions for 4-in-a-row
+      // horizontal
+      for(let r=0;r<6;r++){
+        for(let c=0;c<4;c++){
+          const a = r*7 + c, b = r*7 + c+1, d = r*7 + c+2, e = r*7 + c+3;
+          if(board[a] && board[a] === board[b] && board[a] === board[d] && board[a] === board[e]) return board[a];
+        }
+      }
+      // vertical
+      for(let c=0;c<7;c++){
+        for(let r=0;r<3;r++){
+          const a = r*7 + c, b = (r+1)*7 + c, d = (r+2)*7 + c, e = (r+3)*7 + c;
+          if(board[a] && board[a] === board[b] && board[a] === board[d] && board[a] === board[e]) return board[a];
+        }
+      }
+      // diag down-right
+      for(let r=0;r<3;r++){
+        for(let c=0;c<4;c++){
+          const a = r*7 + c, b = (r+1)*7 + c+1, d = (r+2)*7 + c+2, e = (r+3)*7 + c+3;
+          if(board[a] && board[a] === board[b] && board[a] === board[d] && board[a] === board[e]) return board[a];
+        }
+      }
+      // diag up-right
+      for(let r=3;r<6;r++){
+        for(let c=0;c<4;c++){
+          const a = r*7 + c, b = (r-1)*7 + c+1, d = (r-2)*7 + c+2, e = (r-3)*7 + c+3;
+          if(board[a] && board[a] === board[b] && board[a] === board[d] && board[a] === board[e]) return board[a];
+        }
+      }
+      return null;
+    }
+
+    // Simple minimax + heuristic for Connect4 with alpha-beta and depth limit
+    function getBestMoveConnect4(board, player){
+      const MAX_DEPTH = 5; // tradeoff: higher -> stronger but slower
+      const opponent = player === 'X' ? 'O' : 'X';
+
+      function scoreWindow(window, player){
+        const opp = player === 'X' ? 'O' : 'X';
+        const countP = window.filter(x=>x===player).length;
+        const countO = window.filter(x=>x===opp).length;
+        const countEmpty = window.filter(x=>!x).length;
+        if(countP === 4) return 100000;
+        if(countP === 3 && countEmpty ===1) return 100;
+        if(countP === 2 && countEmpty ===2) return 10;
+        if(countO === 3 && countEmpty ===1) return -80;
+        if(countO === 2 && countEmpty ===2) return -10;
+        return 0;
+      }
+
+      function evaluate(board, player){
+        let score = 0;
+        // center column preference
+        const centerArray = [];
+        for(let r=0;r<6;r++) centerArray.push(board[r*7 + 3]);
+        const centerCount = centerArray.filter(x=>x===player).length;
+        score += centerCount * 6;
+
+        // horizontal windows
+        for(let r=0;r<6;r++){
+          for(let c=0;c<4;c++){
+            const window = [board[r*7+c], board[r*7+c+1], board[r*7+c+2], board[r*7+c+3]];
+            score += scoreWindow(window, player);
+          }
+        }
+        // vertical
+        for(let c=0;c<7;c++){
+          for(let r=0;r<3;r++){
+            const window = [board[r*7+c], board[(r+1)*7+c], board[(r+2)*7+c], board[(r+3)*7+c]];
+            score += scoreWindow(window, player);
+          }
+        }
+        // diag down-right
+        for(let r=0;r<3;r++){
+          for(let c=0;c<4;c++){
+            const window = [board[r*7+c], board[(r+1)*7+c+1], board[(r+2)*7+c+2], board[(r+3)*7+c+3]];
+            score += scoreWindow(window, player);
+          }
+        }
+        // diag up-right
+        for(let r=3;r<6;r++){
+          for(let c=0;c<4;c++){
+            const window = [board[r*7+c], board[(r-1)*7+c+1], board[(r-2)*7+c+2], board[(r-3)*7+c+3]];
+            score += scoreWindow(window, player);
+          }
+        }
+        return score;
+      }
+
+      function validCols(board){
+        const cols=[];
+        for(let c=0;c<7;c++) if(!board[c]) cols.push(c); // top row empty means column available
+        return cols;
+      }
+
+      function cloneBoard(b){ return b.slice(); }
+
+      function minimax(board, depth, alpha, beta, maximizing){
+        const win = checkWinnerConnect4(board);
+        if(win === player) return {score: 1000000 - depth};
+        if(win === opponent) return {score: -1000000 + depth};
+        if(isBoardFullConnect4(board) || depth >= MAX_DEPTH) return {score: evaluate(board, player)};
+
+        const colsOrder = [3,2,4,1,5,0,6];
+        if(maximizing){
+          let value = -Infinity; let col = colsOrder[0];
+          for(const c of colsOrder){
+            // try drop
+            const topIdx = c; if(board[topIdx]) continue;
+            const b2 = cloneBoard(board);
+            dropPiece(b2, c, player);
+            const res = minimax(b2, depth+1, alpha, beta, false);
+            if(res.score > value){ value = res.score; col = c; }
+            alpha = Math.max(alpha, value);
+            if(alpha >= beta) break;
+          }
+          return {score: value, col};
+        } else {
+          let value = Infinity; let col = colsOrder[0];
+          for(const c of colsOrder){
+            const topIdx = c; if(board[topIdx]) continue;
+            const b2 = cloneBoard(board);
+            dropPiece(b2, c, opponent);
+            const res = minimax(b2, depth+1, alpha, beta, true);
+            if(res.score < value){ value = res.score; col = c; }
+            beta = Math.min(beta, value);
+            if(alpha >= beta) break;
+          }
+          return {score: value, col};
+        }
+      }
+
+      const best = minimax(board, 0, -Infinity, Infinity, true);
+      // fallback pick center-most valid
+      if(typeof best.col === 'number') return best.col;
+      const fallback = validCols(board)[0];
+      return (typeof fallback === 'number') ? fallback : 0;
+    }
+
     /* ---------- Stats View render ---------- */
     function renderStatsView(){
       root.statsList.innerHTML = '';
@@ -816,6 +1126,7 @@
       window.promptJoin = promptJoin;
       window.openCreateRoom = openCreateRoom;
       window.quickPlay = quickPlay;
+      window.startConnect4 = startConnect4;
       // expose clear for debugging
       window.__WB = { STATS, ROOMS };
     })();
